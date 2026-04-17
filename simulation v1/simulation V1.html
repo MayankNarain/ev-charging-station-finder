@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>EV Smart Charge App</title>
+
+   
+
+    <!-- Tailwind CSS -->
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+   
+
+    <!-- Leaflet Map Library -->
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+
+
+    <!-- Leaflet Routing Machine (For Directions) -->
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+
+
+    <!-- Google Fonts -->
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+   
+
+    <style>
+
+        body {
+
+            font-family: 'Inter', sans-serif;
+
+            /* Prevent scrolling on the body, app will handle its own scroll */
+
+            overflow: hidden;
+
+        }
+
+        .screen {
+
+            transition: transform 0.3s ease-in-out;
+
+            visibility: hidden;
+
+            position: absolute;
+
+            top: 0;
+
+            left: 0;
+
+            right: 0;
+
+            bottom: 0;
+
+            overflow-y: auto;
+
+            -webkit-overflow-scrolling: touch;
+
+        }
+
+        .screen.active {
+
+            transform: translateX(0%);
+
+            visibility: visible;
+
+        }
+
+        .screen.inactive-left {
+
+            transform: translateX(-100%);
+
+            visibility: visible;
+
+        }
+
+        .screen.inactive-right {
+
+            transform: translateX(100%);
+
+            visibility: visible;
+
+        }
+
+
+
+        #map {
+
+            height: 100%;
+
+            width: 100%;
+
+            z-index: 1; /* Make sure map is behind UI elements */
+
+        }
+
+       
+
+        /* Ensure map UI (zoom) is visible */
+
+        .leaflet-control-container {
+
+            z-index: 10;
+
+        }
+
+
+
+        /* Routing Machine Container adjustments for mobile */
+
+        .leaflet-routing-container {
+
+            background-color: white;
+
+            padding: 10px;
+
+            max-height: 200px; /* Limit height on mobile */
+
+            overflow-y: auto;
+
+            font-size: 12px;
+
+            width: 280px;
+
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
+            border-radius: 8px;
+
+            margin-top: 10px !important;
+
+            margin-right: 10px !important;
+
+        }
+
+
+
+        #captcha-text {
+
+            font-family: 'Courier New', Courier, monospace;
+
+            letter-spacing: 8px;
+
+            text-decoration: line-through;
+
+            font-weight: bold;
+
+            font-size: 1.5rem;
+
+            color: #4a5568;
+
+            user-select: none;
+
+        }
+
+       
+
+        /* --- NEW: Updated Pin Styles for Traffic Logic --- */
+
+       
+
+        /* Base Station Icon */
+
+        .station-icon-base {
+
+            border-radius: 50% 50% 50% 0;
+
+            transform: rotate(-45deg);
+
+            width: 32px;
+
+            height: 32px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+
+            border: 2px solid white;
+
+            transition: transform 0.2s;
+
+        }
+
+       
+
+        /* Standard Available (Green) */
+
+        .station-icon-available {
+
+            background-color: #16A34A; /* Green-600 */
+
+        }
+
+       
+
+        /* High Traffic / Congestion Risk (Orange) */
+
+        .station-icon-traffic {
+
+            background-color: #F97316; /* Orange-500 */
+
+        }
+
+
+
+        /* The "Smart Choice" (Gold) */
+
+        .station-icon-smart {
+
+            background-color: #EAB308; /* Yellow-500 */
+
+            width: 40px; /* Slightly larger */
+
+            height: 40px;
+
+            border: 3px solid white;
+
+            z-index: 1000 !important; /* Always on top */
+
+        }
+
+
+
+        /* Busy / Offline (Gray) */
+
+        .station-icon-busy {
+
+            background-color: #6B7280; /* Gray-500 */
+
+        }
+
+       
+
+        .station-icon-base svg {
+
+            transform: rotate(45deg);
+
+            color: white;
+
+            width: 18px;
+
+            height: 18px;
+
+        }
+
+       
+
+        .station-icon-smart svg {
+
+            width: 22px;
+
+            height: 22px;
+
+        }
+
+
+
+        /* Loading spinner */
+
+        .loader {
+
+            border: 4px solid #f3f3f3;
+
+            border-top: 4px solid #10B981;
+
+            border-radius: 50%;
+
+            width: 24px;
+
+            height: 24px;
+
+            animation: spin 1s linear infinite;
+
+        }
+
+        @keyframes spin {
+
+            0% { transform: rotate(0deg); }
+
+            100% { transform: rotate(360deg); }
+
+        }
+
+    </style>
+
+</head>
+
+<body class="bg-gray-800 flex items-center justify-center min-h-screen">
+
+
+
+    <!-- Mobile App Container -->
+
+    <div class="w-full max-w-sm h-screen sm:h-[85vh] sm:rounded-3xl shadow-2xl overflow-hidden relative bg-gray-50">
+
+       
+
+        <!-- --- Offline Popup --- -->
+
+        <div id="offline-popup" class="absolute inset-0 bg-black/60 z-[9999] flex items-center justify-center hidden backdrop-blur-sm">
+
+            <div class="bg-white p-6 rounded-2xl shadow-2xl text-center max-w-xs mx-6 animate-bounce-in">
+
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8 text-red-600">
+
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+
+                    </svg>
+
+                </div>
+
+                <h2 class="text-xl font-bold text-gray-900 mb-2">No Connection</h2>
+
+                <p class="text-gray-600 font-medium text-sm uppercase tracking-wide">CONNECT TO INTERNET</p>
+
+                <p class="text-gray-400 text-xs mt-2">Please check your network settings.</p>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- Screen 0: Login Screen -->
+
+        <div id="login-screen" class="screen active flex flex-col">
+
+            <div class="p-6 text-center">
+
+                <div class="inline-block bg-green-100 p-3 rounded-full">
+
+                    <svg class="w-10 h-10 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
+
+                </div>
+
+                <h1 class="text-2xl font-bold text-gray-900 mt-4">Welcome Back!</h1>
+
+                <p class="mt-1 text-gray-600">Sign in to continue your journey.</p>
+
+            </div>
+
+            <div class="px-6 space-y-4">
+
+                <div>
+
+                    <label for="email-input" class="text-sm font-medium text-gray-700">Gmail</label>
+
+                    <input id="email-input" type="email" placeholder="you@example.com" class="mt-1 w-full bg-gray-100 border border-gray-200 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+
+                </div>
+
+                <div>
+
+                    <label for="vehicle-input" class="text-sm font-medium text-gray-700">Vehicle Number</label>
+
+                    <input id="vehicle-input" type="text" placeholder="DL 01 AB 1234" class="mt-1 w-full bg-gray-100 border border-gray-200 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+
+                </div>
+
+                 <div>
+
+                    <label for="unique-id-input" class="text-sm font-medium text-gray-700">Unique ID</label>
+
+                    <input id="unique-id-input" type="text" placeholder="Enter your unique ID" class="mt-1 w-full bg-gray-100 border border-gray-200 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+
+                </div>
+
+                <div>
+
+                    <label class="text-sm font-medium text-gray-700">Authentication</label>
+
+                    <div class="mt-1 flex items-center justify-between bg-gray-100 border border-gray-200 rounded-lg p-2">
+
+                        <span id="captcha-text"></span>
+
+                        <button id="refresh-captcha" class="p-2 rounded-md hover:bg-gray-200">
+
+                            <svg class="w-5 h-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0l3.18-3.185m-3.181 0l-3.182-3.182m0 0a8.25 8.25 0 00-11.664 0l-3.18 3.185" /></svg>
+
+                        </button>
+
+                    </div>
+
+                     <input type="text" id="captcha-input" placeholder="Enter the text above" class="mt-2 w-full bg-white border border-gray-200 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+
+                </div>
+
+                <p id="login-error" class="text-red-500 text-sm hidden">Invalid CAPTCHA or missing fields.</p>
+
+            </div>
+
+            <div class="flex-grow"></div>
+
+            <div class="p-6 sticky bottom-0 bg-white/80 backdrop-blur-sm border-t border-gray-200">
+
+                <button id="login-button" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20">Login</button>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- Screen 1: EV Selection (Onboarding) -->
+
+        <div id="onboarding-screen" class="screen inactive-right flex flex-col">
+
+             <div class="p-6">
+
+                <h1 class="text-2xl font-bold text-gray-900">First, select your vehicle</h1>
+
+                <p class="mt-1 text-gray-600">This helps us accurately estimate your range and find compatible chargers.</p>
+
+            </div>
+
+            <div class="px-6 pb-4">
+
+                <div class="relative">
+
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
+
+                    <input type="text" id="ev-search-input" placeholder="Search for your EV model" class="w-full bg-gray-100 border border-gray-200 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+
+                </div>
+
+            </div>
+
+            <div class="px-6">
+
+                <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Popular Brands</h2>
+
+                <div id="brands-grid" class="grid grid-cols-3 gap-4 mt-3"></div>
+
+            </div>
+
+            <div id="model-selection-area" class="px-6 mt-6 hidden">
+
+                <div class="flex items-center">
+
+                    <img id="selected-brand-logo" src="" alt="Brand Logo" class="w-8 h-8 mr-3">
+
+                    <h2 id="selected-brand-name" class="text-lg font-bold text-gray-900"></h2>
+
+                </div>
+
+                <div id="models-list" class="mt-3 space-y-2"></div>
+
+            </div>
+
+            <div class="flex-grow"></div>
+
+            <div class="p-6 sticky bottom-0 bg-white/80 backdrop-blur-sm border-t border-gray-200">
+
+                <button id="save-vehicle-button" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 disabled:bg-gray-400" disabled>Save & Continue</button>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- Screen 2: Main Map Screen -->
+
+        <div id="map-screen" class="screen inactive-right flex flex-col">
+
+            <!-- Map container must be present *before* the UI panels -->
+
+            <div id="map" class="flex-grow"></div>
+
+           
+
+            <!-- Top UI Panel (Now sliding) -->
+
+            <div id="map-info-panel" class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/20 to-transparent z-10 transition-all duration-500">
+
+                <div class="bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-md">
+
+                    <div class="flex items-center justify-between">
+
+                        <p class="text-sm text-gray-600">Your Car: <span id="user-car-model" class="font-bold text-black">Tata Nexon EV</span></p>
+
+                        <!-- Refresh button -->
+
+                        <button id="refresh-stations-button" class="p-1 rounded-full hover:bg-gray-200 flex items-center justify-center">
+
+                            <svg class="w-5 h-5 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.664 0l3.18-3.185m-3.181 0l-3.182-3.182m0 0a8.25 8.25 0 00-11.664 0l-3.18 3.185" />
+
+                            </svg>
+
+                        </button>
+
+                    </div>
+
+                    <div class="flex items-center mt-2">
+
+                        <svg class="w-6 h-6 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+
+                        <div class="w-full bg-gray-200 rounded-full h-2.5"><div id="battery-bar" class="bg-green-500 h-2.5 rounded-full" style="width: 65%"></div></div>
+
+                        <span id="battery-percent" class="font-bold text-lg ml-3">65%</span>
+
+                    </div>
+
+                    <p class="text-center text-gray-600 text-sm mt-2">Estimated Range: <span id="estimated-range" class="font-bold text-black">120 km</span></p>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- API Key Error Banner -->
+
+            <div id="api-key-error-banner" class="absolute bottom-16 left-0 right-0 p-3 bg-yellow-100 text-yellow-800 text-sm text-center z-10 hidden">
+
+                API Key missing. Please add your OpenChargeMap API key to the code.
+
+            </div>
+
+
+
+            <!-- Location Error Banner -->
+
+            <div id="location-error-banner" class="absolute bottom-0 left-0 right-0 p-3 bg-red-100 text-red-700 text-sm text-center z-10 hidden">
+
+                Live location failed or is not permitted. Showing default map location.
+
+            </div>
+
+           
+
+            <!-- Clear Route Button (Updated Position) -->
+
+             <button id="clear-route-button" class="absolute bottom-32 right-4 bg-red-500 text-white p-3 rounded-full shadow-lg z-20 hidden hover:bg-red-600 transition">
+
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+
+                </svg>
+
+            </button>
+
+
+
+            <!-- Loading Indicator -->
+
+            <div id="loading-indicator" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/90 p-4 rounded-xl shadow-md z-20 hidden">
+
+                <div class="flex items-center space-x-3">
+
+                    <div class="loader"></div>
+
+                    <span class="text-gray-700 font-medium">Finding optimal stations...</span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- Screen 3: Station Details -->
+
+        <div id="details-screen" class="screen inactive-right flex flex-col">
+
+            <div class="p-4 flex items-center border-b border-gray-200 sticky top-0 bg-white/80 backdrop-blur-sm z-10">
+
+                <button class="p-2 rounded-full hover:bg-gray-100 back-to-map">
+
+                    <svg class="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+
+                </button>
+
+                <h1 id="details-station-name" class="text-lg font-bold text-gray-900 text-center flex-grow truncate px-2">Station Name</h1>
+
+                <div class="w-8"></div>
+
+            </div>
+
+            <div class="h-48 bg-gray-200">
+
+                <img id="details-station-image" src="https://placehold.co/600x400/e2e8f0/334155?text=Charging+Station" alt="Charging Station" class="w-full h-full object-cover">
+
+            </div>
+
+           
+
+            <!-- Smart Status Banner -->
+
+            <div id="details-smart-banner" class="bg-green-100 p-3 text-center hidden">
+
+                <p class="text-sm font-bold text-green-800 flex items-center justify-center">
+
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+
+                    Smart Choice: Best availability & distance
+
+                </p>
+
+            </div>
+
+             <div id="details-traffic-banner" class="bg-orange-100 p-3 text-center hidden">
+
+                <p class="text-sm font-bold text-orange-800 flex items-center justify-center">
+
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+
+                    High Inbound Traffic Warning
+
+                </p>
+
+            </div>
+
+
+
+            <div class="p-5">
+
+                <div class="flex items-start justify-between">
+
+                    <div>
+
+                        <p id="details-station-address" class="font-semibold text-gray-800">123 Main St, City</p>
+
+                        <p id="details-station-distance" class="text-sm text-gray-500">0.0 km away</p>
+
+                    </div>
+
+                    <span id="details-station-status" class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded-full">Open 24 hours</span>
+
+                </div>
+
+               
+
+                <!-- Traffic Info Grid -->
+
+                <div class="mt-4 grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+
+                     <div class="text-center">
+
+                        <p class="text-xs text-gray-500 uppercase">Est. Wait Time</p>
+
+                        <p id="details-wait-time" class="font-bold text-gray-900">~ 5 mins</p>
+
+                     </div>
+
+                     <div class="text-center border-l border-gray-200">
+
+                        <p class="text-xs text-gray-500 uppercase">Drivers Inbound</p>
+
+                        <p id="details-inbound-users" class="font-bold text-gray-900">2 Users</p>
+
+                     </div>
+
+                </div>
+
+            </div>
+
+
+
+            <div class="px-5 pb-5">
+
+                <h2 class="font-bold text-gray-800 mb-3">Connectors</h2>
+
+                <div id="details-connectors-list" class="space-y-3">
+
+                    <!-- Connector items will be dynamically inserted here -->
+
+                </div>
+
+            </div>
+
+            <div class="px-5 pb-5">
+
+                <h2 class="font-bold text-gray-800 mb-3">Amenities</h2>
+
+                <div id="details-amenities-list" class="flex space-x-4">
+
+                    <!-- Amenities will be dynamically inserted here -->
+
+                </div>
+
+            </div>
+
+            <div class="flex-grow"></div>
+
+            <div class="p-4 sticky bottom-0 bg-white/80 backdrop-blur-sm border-t border-gray-200">
+
+                <div class="flex space-x-3">
+
+                    <button id="get-directions-button" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20">Get Directions</button>
+
+                    <button class="w-full bg-gray-200 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-300 transition-colors">Start Charging</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <script>
+
+        // --- IMPORTANT: API KEY ---
+
+        // Register for a free API key at: https://openchargemap.org/site/develop/api
+
+        const API_KEY = "5edba2c9-c475-4aac-afe9-2188a0c80e25";
+
+
+
+        // --- DATABASE (Mock Data) ---
+
+       
+
+        // Mock EV Data
+
+        const evData = {
+
+            'Tata': {
+
+                logo: 'https://placehold.co/100x100/003362/FFFFFF?text=T',
+
+                models: [
+
+                    { name: 'Nexon EV', range: 325 },
+
+                    { name: 'Tiago EV', range: 250 },
+
+                    { name: 'Tigor EV', range: 315 },
+
+                    { name: 'Punch EV', range: 315 }
+
+                ]
+
+            },
+
+            'MG': {
+
+                logo: 'https://placehold.co/100x100/A51C30/FFFFFF?text=MG',
+
+                models: [
+
+                    { name: 'ZS EV', range: 461 },
+
+                    { name: 'Comet EV', range: 230 }
+
+                ]
+
+            },
+
+            'Hyundai': {
+
+                logo: 'https://placehold.co/100x100/002C5F/FFFFFF?text=H',
+
+                models: [
+
+                    { name: 'Kona Electric', range: 452 },
+
+                    { name: 'IONIQ 5', range: 631 }
+
+                ]
+
+            },
+
+            'Mahindra': {
+
+                logo: 'https://placehold.co/100x100/CF2129/FFFFFF?text=M',
+
+                models: [
+
+                    { name: 'XUV400', range: 375 }
+
+                ]
+
+            },
+
+            'Kia': {
+
+                logo: 'https://placehold.co/100x100/05142E/FFFFFF?text=K',
+
+                models: [
+
+                    { name: 'EV6', range: 708 }
+
+                ]
+
+            },
+
+            'BYD': {
+
+                logo: 'https://placehold.co/100x100/D31119/FFFFFF?text=B',
+
+                models: [
+
+                    { name: 'Atto 3', range: 480 },
+
+                    { name: 'e6', range: 520 }
+
+                ]
+
+            }
+
+        };
+
+
+
+        // This is now empty, will be filled by API
+
+        let globalChargingStations = [];
+
+        let stationMarkers = [];
+
+        let routingControl = null; // To store the active route
+
+       
+
+        // Amenity Icons
+
+        const amenityIcons = {
+
+            'Restroom': '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>',
+
+            'Cafe': '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5h3m-6.75 0h10.5c.621 0 1.125-.504 1.125-1.125v-6.75c0-.621-.504-1.125-1.125-1.125H6.375c-.621 0-1.125.504-1.125 1.125v6.75c0 .621.504 1.125 1.125 1.125zM6.375 12H21m-14.625 0v5.25A2.25 2.25 0 005.25 19.5h.008v.008H5.25v-.008zM18.75 12v5.25A2.25 2.25 0 0116.5 19.5h-.008v.008h.008v-.008z" /></svg>',
+
+            'Mall': '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>',
+
+            'Food Court': '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.0114 60.0114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>',
+
+            'Movies': '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125z" /></svg>'
+
+        };
+
+
+
+        // --- GLOBAL STATE ---
+
+        let map;
+
+        let userMarker;
+
+        let rangeCircle;
+
+        let selectedEV = { name: 'Tata Nexon EV', range: 325 }; // Default
+
+        let userLocation = { lat: 28.6139, lng: 77.2090 }; // Default: Delhi
+
+        let currentBattery = 25; // Default: 25%
+
+        let userName = "You"; // Default user name
+
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+
+
+            // --- UI ELEMENTS ---
+
+            const apiKeyErrorBanner = document.getElementById('api-key-error-banner');
+
+            const locationErrorBanner = document.getElementById('location-error-banner');
+
+            const loadingIndicator = document.getElementById('loading-indicator');
+
+            const offlinePopup = document.getElementById('offline-popup'); // NEW: Offline Popup
+
+            const clearRouteButton = document.getElementById('clear-route-button'); // NEW: Clear Route Button
+
+            const mapInfoPanel = document.getElementById('map-info-panel'); // NEW: Info Panel for Sliding
+
+
+
+            // --- SCREEN NAVIGATION ---
+
+            const screens = {
+
+                login: document.getElementById('login-screen'),
+
+                onboarding: document.getElementById('onboarding-screen'),
+
+                map: document.getElementById('map-screen'),
+
+                details: document.getElementById('details-screen')
+
+            };
+
+
+
+            function showScreen(screenId, direction = 'forward') {
+
+                const activeScreen = document.querySelector('.screen.active');
+
+                const nextScreen = screens[screenId];
+
+
+
+                if (activeScreen) {
+
+                    activeScreen.classList.remove('active');
+
+                    activeScreen.classList.add(direction === 'forward' ? 'inactive-left' : 'inactive-right');
+
+                }
+
+               
+
+                nextScreen.classList.remove('inactive-left', 'inactive-right');
+
+                nextScreen.classList.add('active');
+
+
+
+                // Special case for map: needs to be invalidated to render correctly
+
+                if (screenId === 'map') {
+
+                    // Use a small timeout to ensure the screen is visible before resizing
+
+                    setTimeout(() => {
+
+                        if (map) {
+
+                            map.invalidateSize();
+
+                        }
+
+                    }, 300);
+
+                }
+
+            }
+
+
+
+            // --- OFFLINE DETECTION ---
+
+            function updateOnlineStatus() {
+
+                if (navigator.onLine) {
+
+                    offlinePopup.classList.add('hidden');
+
+                } else {
+
+                    offlinePopup.classList.remove('hidden');
+
+                }
+
+            }
+
+
+
+            window.addEventListener('online', updateOnlineStatus);
+
+            window.addEventListener('offline', updateOnlineStatus);
+
+            updateOnlineStatus(); // Check on load
+
+
+
+            // --- LOGIN SCREEN ---
+
+            const captchaText = document.getElementById('captcha-text');
+
+            const refreshCaptcha = document.getElementById('refresh-captcha');
+
+            const captchaInput = document.getElementById('captcha-input');
+
+            const loginButton = document.getElementById('login-button');
+
+            const loginError = document.getElementById('login-error');
+
+           
+
+            function generateCaptcha() {
+
+                const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // Avoided confusing chars
+
+                let captcha = '';
+
+                for (let i = 0; i < 6; i++) {
+
+                    captcha += chars.charAt(Math.floor(Math.random() * chars.length));
+
+                }
+
+                captchaText.textContent = captcha;
+
+            }
+
+
+
+            refreshCaptcha.addEventListener('click', generateCaptcha);
+
+            loginButton.addEventListener('click', () => {
+
+                const email = document.getElementById('email-input').value;
+
+                const vehicle = document.getElementById('vehicle-input').value;
+
+                const uid = document.getElementById('unique-id-input').value;
+
+
+
+                // Extract first name from email
+
+                const emailUsername = email.split('@')[0];
+
+                const firstName = emailUsername.split(/[._-]/)[0]; // Split by ., _, or -
+
+                if (firstName) {
+
+                    userName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+
+                } else {
+
+                    userName = "You"; // Fallback
+
+                }
+
+               
+
+                if (captchaInput.value.toUpperCase() === captchaText.textContent && email && vehicle && uid) {
+
+                    loginError.classList.add('hidden');
+
+                    showScreen('onboarding', 'forward');
+
+                } else {
+
+                    loginError.classList.remove('hidden');
+
+                    generateCaptcha(); // Refresh captcha on failure
+
+                }
+
+            });
+
+           
+
+            generateCaptcha(); // Initial captcha generation
+
+
+
+            // --- ONBOARDING SCREEN ---
+
+            const brandsGrid = document.getElementById('brands-grid');
+
+            const modelSelectionArea = document.getElementById('model-selection-area');
+
+            const modelsList = document.getElementById('models-list');
+
+            const selectedBrandLogo = document.getElementById('selected-brand-logo');
+
+            const selectedBrandName = document.getElementById('selected-brand-name');
+
+            const saveVehicleButton = document.getElementById('save-vehicle-button');
+
+
+
+            for (const brand in evData) {
+
+                const brandData = evData[brand];
+
+                const brandDiv = document.createElement('div');
+
+                brandDiv.className = 'flex flex-col items-center p-3 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-green-500 hover:shadow-md transition';
+
+                brandDiv.addEventListener('click', () => showModelsFor(brand));
+
+                brandDiv.innerHTML = `<img src="${brandData.logo}" alt="${brand} Logo" class="w-12 h-12 mb-2 object-contain rounded-md"><span class="text-sm font-semibold text-gray-700">${brand}</span>`;
+
+                brandsGrid.appendChild(brandDiv);
+
+            }
+
+
+
+            function showModelsFor(brand) {
+
+                const brandData = evData[brand];
+
+                selectedBrandLogo.src = brandData.logo;
+
+                selectedBrandName.textContent = `${brand} Models`;
+
+                modelsList.innerHTML = '';
+
+               
+
+                // Deselect other brands
+
+                Array.from(brandsGrid.children).forEach(child => {
+
+                    child.classList.remove('border-green-500', 'shadow-md', 'bg-green-50');
+
+                });
+
+                // Select this brand
+
+                const brandDiv = Array.from(brandsGrid.children).find(child => child.textContent === brand);
+
+                if (brandDiv) {
+
+                    brandDiv.classList.add('border-green-500', 'shadow-md', 'bg-green-50');
+
+                }
+
+
+
+                brandData.models.forEach(model => {
+
+                    const modelButton = document.createElement('button');
+
+                    modelButton.className = 'w-full text-left p-3 bg-gray-100 rounded-lg hover:bg-green-100 hover:text-green-700 font-medium transition';
+
+                    modelButton.textContent = model.name;
+
+                    modelButton.addEventListener('click', () => {
+
+                        selectedEV = model;
+
+                        // Deselect other models
+
+                        Array.from(modelsList.children).forEach(child => {
+
+                            child.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-100');
+
+                        });
+
+                        // Select this model
+
+                        modelButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-600');
+
+                        saveVehicleButton.disabled = false;
+
+                    });
+
+                    modelsList.appendChild(modelButton);
+
+                });
+
+                modelSelectionArea.classList.remove('hidden');
+
+            }
+
+
+
+            saveVehicleButton.addEventListener('click', () => {
+
+                document.getElementById('user-car-model').textContent = selectedEV.name;
+
+                updateRange();
+
+                showScreen('map', 'forward');
+
+            });
+
+
+
+            // --- MAP SCREEN ---
+
+
+
+            // Custom icon for the user's car
+
+            const userCarIcon = L.icon({
+
+                iconUrl: 'https://img.icons8.com/fluency/96/car.png',
+
+                iconSize: [50, 50],
+
+                iconAnchor: [25, 25],
+
+                popupAnchor: [0, -25]
+
+            });
+
+           
+
+            // Initialize the map
+
+            map = L.map('map', {
+
+                zoomControl: false // Disable default zoom, we'll add it in a different position
+
+            }).setView(userLocation, 12);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+                maxZoom: 19,
+
+                attribution: '© OpenStreetMap'
+
+            }).addTo(map);
+
+
+
+            // Add User Marker
+
+            userMarker = L.marker(userLocation, { icon: userCarIcon }).addTo(map)
+
+                .bindPopup(userName)
+
+                .openPopup();
+
+           
+
+            // Add Range Circle
+
+            rangeCircle = L.circle(userLocation, {
+
+                radius: (selectedEV.range * (currentBattery / 100)) * 1000, // in meters
+
+                color: '#16A34A',
+
+                fillColor: '#16A34A',
+
+                fillOpacity: 0.1,
+
+                weight: 2
+
+            }).addTo(map);
+
+
+
+            // Function to update range circle
+
+            function updateRange() {
+
+                const newRadius = (selectedEV.range * (currentBattery / 100)) * 1000;
+
+                rangeCircle.setRadius(newRadius);
+    
+                document.getElementById('estimated-range').textContent = `${(newRadius / 1000).toFixed(1)} km`;
+
+                document.getElementById('battery-bar').style.width = `${currentBattery}%`;
+
+                document.getElementById('battery-percent').textContent = `${currentBattery}%`;
+
+            }
+
+           
+
+            // --- Set initial UI state from default battery ---
+
+            updateRange();
+
+
+
+            // --- ROUTING LOGIC ---
+
+           
+
+            // Function to remove current route
+
+            function clearRoute() {
+
+                if (routingControl) {
+
+                    map.removeControl(routingControl);
+
+                    routingControl = null;
+
+                }
+
+                clearRouteButton.classList.add('hidden');
+
+               
+
+                // --- NEW: Slide Panel Back to Top ---
+
+                mapInfoPanel.classList.remove('bottom-0', 'bg-gradient-to-t');
+
+                mapInfoPanel.classList.add('top-0', 'bg-gradient-to-b');
+
+            }
+
+           
+
+            // Attach clear route action to the new button
+
+            clearRouteButton.addEventListener('click', clearRoute);
+
+
+
+            // Function to calculate and display route
+
+            function showRouteTo(destLat, destLng) {
+
+                // 1. Switch to map screen
+
+                showScreen('map', 'backward');
+
+               
+
+                // 2. Remove any existing route
+
+                clearRoute();
+
+               
+
+                // --- NEW: Slide Panel to Bottom ---
+
+                mapInfoPanel.classList.remove('top-0', 'bg-gradient-to-b');
+
+                mapInfoPanel.classList.add('bottom-0', 'bg-gradient-to-t');
+
+
+
+                // 3. Create new route
+
+                routingControl = L.Routing.control({
+
+                    waypoints: [
+
+                        L.latLng(userLocation.lat, userLocation.lng),
+
+                        L.latLng(destLat, destLng)
+
+                    ],
+
+                    routeWhileDragging: false,
+
+                    showAlternatives: false,
+
+                    fitSelectedRoutes: true,
+
+                    lineOptions: {
+
+                        styles: [{color: '#2563EB', opacity: 0.8, weight: 6}] // Blue route line
+
+                    },
+
+                    // Prevent Routing Machine from adding default markers (we have our own)
+
+                    createMarker: function() { return null; },
+
+                    // Simple container for instructions
+
+                    containerClassName: 'bg-white p-2 rounded shadow-lg max-h-40 overflow-y-auto'
+
+                }).addTo(map);
+
+               
+
+                // 4. Show the "Clear Route" button
+
+                clearRouteButton.classList.remove('hidden');
+
+            }
+
+
+
+            // --- API & DATA LOGIC ---
+
+           
+
+            async function fetchAndDisplayStations(lat, lng) {
+
+                if (!API_KEY) {
+
+                    apiKeyErrorBanner.classList.remove('hidden');
+
+                    console.error("API Key is missing.");
+
+                    return;
+
+                }
+
+                apiKeyErrorBanner.classList.add('hidden');
+
+                loadingIndicator.classList.remove('hidden');
+
+
+
+                const maxResults = 30;
+
+                const distance = 20; // in km
+
+                const apiUrl = `https://api.openchargemap.io/v3/poi/?output=json&latitude=${lat}&longitude=${lng}&distance=${distance}&distanceunit=km&maxresults=${maxResults}&key=${API_KEY}`;
+
+
+
+                try {
+
+                    const response = await fetch(apiUrl);
+
+                    if (!response.ok) {
+
+                        throw new Error(`API Error: ${response.statusText}`);
+
+                    }
+
+                    const data = await response.json();
+
+
+
+                    // Clear old data
+
+                    globalChargingStations = [];
+
+                    stationMarkers.forEach(marker => marker.remove());
+
+                    stationMarkers = [];
+
+
+
+                    let bestStation = null;
+
+                    let highestScore = -Infinity;
+
+
+
+                    // Transform API data to our app's format AND Calculate Smart Scores
+
+                    data.forEach(ocmStation => {
+
+                        if (!ocmStation.AddressInfo || !ocmStation.AddressInfo.Latitude || !ocmStation.AddressInfo.Longitude) {
+
+                            return;
+
+                        }
+
+                       
+
+                        // Calculate actual distance from user
+
+                        const dist = map.distance(userLocation, [ocmStation.AddressInfo.Latitude, ocmStation.AddressInfo.Longitude]) / 1000;
+
+
+
+                        // MOCKING: Inbound traffic (0-5 users randomly)
+
+                        const mockInbound = Math.floor(Math.random() * 6);
+
+                        const mockWaitTime = Math.floor(Math.random() * 20); // 0-20 mins
+
+
+
+                        // Calculate available connectors
+
+                        let availableCount = 0;
+
+                        if (ocmStation.Connections) {
+
+                            availableCount = ocmStation.Connections.filter(c => c.StatusType && c.StatusType.ID === 50).length;
+
+                        }
+
+
+
+                        // --- SMART SCORING ALGORITHM ---
+
+                        // Formula: (1/Distance)*10 + (Availability)*5 - (Inbound)*3
+
+                        const distScore = (1 / (dist + 0.1)) * 10; // +0.1 to avoid divide by zero
+
+                        const availScore = availableCount * 5;
+
+                        const congestionPenalty = mockInbound * 3;
+
+                        const smartScore = distScore + availScore - congestionPenalty;
+
+
+
+                        const station = {
+
+                            id: ocmStation.ID,
+
+                            name: ocmStation.AddressInfo.Title,
+
+                            lat: ocmStation.AddressInfo.Latitude,
+
+                            lng: ocmStation.AddressInfo.Longitude,
+
+                            address: ocmStation.AddressInfo.AddressLine1 || 'Address not provided',
+
+                            status: ocmStation.StatusType ? ocmStation.StatusType.Title : 'Unknown',
+
+                            image: (ocmStation.MediaItems && ocmStation.MediaItems.length > 0) ? ocmStation.MediaItems[0].ItemURL : 'https://placehold.co/600x400/e2e8f0/334155?text=Station',
+
+                            connectors: (ocmStation.Connections || []).map(conn => ({
+
+                                type: conn.ConnectionType ? conn.ConnectionType.Title : 'Unknown',
+
+                                speed: conn.PowerKW ? `${conn.PowerKW} kW` : (conn.Level ? conn.Level.Comments : 'Standard'),
+
+                                price: conn.UsageCost ? conn.UsageCost : 'N/A',
+
+                                isAvailable: conn.StatusType ? conn.StatusType.ID === 50 : false,
+
+                                statusText: conn.StatusType ? conn.StatusType.Title : 'Unknown'
+
+                            })),
+
+                            amenities: ['Restroom', 'Cafe'].filter(() => Math.random() > 0.5),
+
+                           
+
+                            // Smart Data
+
+                            distanceKm: dist,
+
+                            inboundUsers: mockInbound,
+
+                            waitTime: mockWaitTime,
+
+                            smartScore: smartScore,
+
+                            isSmartChoice: false, // Will calculate after loop
+
+                            isHighTraffic: (availableCount <= 1 && mockInbound >= 2) // Logic for Orange badge
+
+                        };
+
+
+
+                        if (smartScore > highestScore) {
+
+                            highestScore = smartScore;
+
+                            bestStation = station;
+
+                        }
+
+
+
+                        globalChargingStations.push(station);
+
+                    });
+
+                   
+
+                    // Mark the winner
+
+                    if (bestStation) {
+
+                        bestStation.isSmartChoice = true;
+
+                    }
+
+                   
+
+                    addStationMarkers(globalChargingStations);
+
+
+
+                } catch (error) {
+
+                    console.error("Failed to fetch charging stations:", error);
+
+                    locationErrorBanner.textContent = "Failed to load station data.";
+
+                    locationErrorBanner.classList.remove('hidden');
+
+                } finally {
+
+                    loadingIndicator.classList.add('hidden');
+
+                }
+
+            }
+
+
+
+            function addStationMarkers(stations) {
+
+                stations.forEach(station => {
+
+                    const isAvailable = station.connectors.some(c => c.isAvailable);
+
+                   
+
+                    // Determine Icon Style
+
+                    let iconClass = 'station-icon-base';
+
+                    let iconContent = ''; // Default icon SVG
+
+                   
+
+                    if (station.isSmartChoice) {
+
+                        iconClass += ' station-icon-smart';
+
+                        // Star Icon for Smart Choice
+
+                        iconContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clip-rule="evenodd" /></svg>`;
+
+                    } else if (station.isHighTraffic) {
+
+                        iconClass += ' station-icon-traffic';
+
+                        // Warning/Traffic Icon
+
+                        iconContent = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
+
+                    } else if (isAvailable) {
+
+                        iconClass += ' station-icon-available';
+
+                        // Bolt Icon
+
+                        iconContent = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>`;
+
+                    } else {
+
+                        iconClass += ' station-icon-busy';
+
+                        iconContent = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg>`;
+
+                    }
+
+
+
+                    const iconHtml = `<div class="${iconClass}">${iconContent}</div>`;
+
+                   
+
+                    const customIcon = L.divIcon({
+
+                        html: iconHtml,
+
+                        className: '',
+
+                        iconSize: [32, 32],
+
+                        iconAnchor: [16, 32],
+
+                        popupAnchor: [0, -32]
+
+                    });
+
+
+
+                    const marker = L.marker([station.lat, station.lng], { icon: customIcon }).addTo(map);
+
+                    marker.on('click', () => {
+
+                        populateDetailsScreen(station);
+
+                        showScreen('details', 'forward');
+
+                    });
+
+                    stationMarkers.push(marker);
+
+                });
+
+            }
+
+           
+
+            // Refresh button
+
+            document.getElementById('refresh-stations-button').addEventListener('click', () => {
+
+                const center = map.getCenter();
+
+                fetchAndDisplayStations(center.lat, center.lng);
+
+            });
+
+
+
+            // --- DETAILS SCREEN ---
+
+            const detailsName = document.getElementById('details-station-name');
+
+            const detailsImage = document.getElementById('details-station-image');
+
+            const detailsAddress = document.getElementById('details-station-address');
+
+            const detailsDistance = document.getElementById('details-station-distance');
+
+            const detailsStatus = document.getElementById('details-station-status');
+
+            const connectorsList = document.getElementById('details-connectors-list');
+
+            const amenitiesList = document.getElementById('details-amenities-list');
+
+            const getDirectionsButton = document.getElementById('get-directions-button');
+
+           
+
+            // New Elements
+
+            const smartBanner = document.getElementById('details-smart-banner');
+
+            const trafficBanner = document.getElementById('details-traffic-banner');
+
+            const inboundUsersText = document.getElementById('details-inbound-users');
+
+            const waitTimeText = document.getElementById('details-wait-time');
+
+
+
+            function populateDetailsScreen(station) {
+
+                detailsName.textContent = station.name;
+
+                detailsImage.src = station.image;
+
+                detailsImage.onerror = () => { detailsImage.src = 'https://placehold.co/600x400/e2e8f0/334155?text=Station'; };
+
+                detailsAddress.textContent = station.address;
+
+                detailsDistance.textContent = `${station.distanceKm.toFixed(1)} km away`;
+
+               
+
+                // --- NEW: Populate Traffic Data ---
+
+                inboundUsersText.textContent = `${station.inboundUsers} Users`;
+
+                waitTimeText.textContent = `~ ${station.waitTime} mins`;
+
+
+
+                // Toggle Banners
+
+                if (station.isSmartChoice) {
+
+                    smartBanner.classList.remove('hidden');
+
+                    trafficBanner.classList.add('hidden');
+
+                } else if (station.isHighTraffic) {
+
+                    smartBanner.classList.add('hidden');
+
+                    trafficBanner.classList.remove('hidden');
+
+                } else {
+
+                    smartBanner.classList.add('hidden');
+
+                    trafficBanner.classList.add('hidden');
+
+                }
+
+               
+
+                detailsStatus.textContent = station.status;
+
+                if (station.status.toLowerCase().includes('operational') || station.status.toLowerCase().includes('open')) {
+
+                    detailsStatus.classList.remove('bg-red-100', 'text-red-800');
+
+                    detailsStatus.classList.add('bg-green-100', 'text-green-800');
+
+                } else {
+
+                    detailsStatus.classList.remove('bg-green-100', 'text-green-800');
+
+                    detailsStatus.classList.add('bg-red-100', 'text-red-800');
+
+                }
+
+
+
+                // Populate Connectors
+
+                connectorsList.innerHTML = '';
+
+                if (station.connectors.length === 0) {
+
+                    connectorsList.innerHTML = '<p class="text-gray-500">No connector details available.</p>';
+
+                }
+
+                station.connectors.forEach(connector => {
+
+                    const availabilityClass = connector.isAvailable ? 'text-green-600' : 'text-red-600';
+
+                    const connectorHtml = `
+
+                        <div class="bg-white p-4 rounded-lg border border-gray-200">
+
+                            <div class="flex items-center justify-between">
+
+                                <div class="flex items-center">
+
+                                    <div class="bg-green-100 p-2 rounded-lg"><svg class="w-6 h-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg></div>
+
+                                    <div class="ml-3">
+
+                                        <p class="font-semibold text-gray-900">${connector.type}</p>
+
+                                        <p class="text-sm text-gray-500">${connector.speed}</p>
+
+                                    </div>
+
+                                </div>
+
+                                <div>
+
+                                    <p class="font-bold text-gray-900 text-right">${connector.price}</p>
+
+                                    <p class="text-sm ${availabilityClass} font-semibold text-right">${connector.statusText}</p>
+
+                                </div>
+
+                            </div>
+
+                        </div>`;
+
+                    connectorsList.innerHTML += connectorHtml;
+
+                });
+
+
+
+                // Populate Amenities
+
+                amenitiesList.innerHTML = '';
+
+                if (station.amenities.length === 0) {
+
+                    amenitiesList.innerHTML = '<p class="text-gray-500 text-sm">No amenities listed.</p>';
+
+                }
+
+                station.amenities.forEach(amenity => {
+
+                    const icon = amenityIcons[amenity] || amenityIcons['Restroom']; // Default icon
+
+                    const amenityHtml = `
+
+                        <div class="flex flex-col items-center space-y-1 text-gray-600">
+
+                            <div class="p-3 bg-gray-100 rounded-full">${icon}</div>
+
+                            <span class="text-xs">${amenity}</span>
+
+                        </div>`;
+
+                    amenitiesList.innerHTML += amenityHtml;
+
+                });
+
+
+
+                // Add "Get Directions" functionality with Tracking
+
+                getDirectionsButton.onclick = () => {
+
+                    // Simulation: Increment inbound users for this session
+
+                    station.inboundUsers += 1;
+
+                    inboundUsersText.textContent = `${station.inboundUsers} Users`;
+
+                   
+
+                    // Call our new in-app routing function
+
+                    showRouteTo(station.lat, station.lng);
+
+                };
+
+            }
+
+
+
+            // Back button functionality
+
+            document.querySelectorAll('.back-to-map').forEach(btn => {
+
+                btn.addEventListener('click', () => showScreen('map', 'backward'));
+
+            });
+
+           
+
+            // Try to get real user location and watch for changes
+
+            if (navigator.geolocation) {
+
+                const handleGeoError = (error) => {
+
+                    let message = "Could not get user location, defaulting to Delhi.";
+
+                    if (error) {
+
+                        message = `Error watching position: ${error.message}`;
+
+                    }
+
+                    console.log(message);
+
+                    locationErrorBanner.classList.remove('hidden');
+
+                    // Fetch stations for default location
+
+                    fetchAndDisplayStations(userLocation.lat, userLocation.lng);
+
+                };
+
+
+
+                // Get initial position and set view
+
+                navigator.geolocation.getCurrentPosition(position => {
+
+                    console.log("Initial position found:", position.coords);
+
+                    locationErrorBanner.classList.add('hidden'); // Hide error if successful
+
+                    userLocation = {
+
+                        lat: position.coords.latitude,
+
+                        lng: position.coords.longitude
+
+                    };
+
+                    map.setView(userLocation, 13);
+
+                    userMarker.setLatLng(userLocation);
+
+                    userMarker.setPopupContent(userName);
+
+                    rangeCircle.setLatLng(userLocation);
+
+                    // Fetch stations for user's location
+
+                    fetchAndDisplayStations(userLocation.lat, userLocation.lng);
+
+                }, handleGeoError);
+
+
+
+                // Watch for subsequent position changes
+
+                navigator.geolocation.watchPosition(position => {
+
+                    console.log("Live location updated:", position.coords);
+
+                    locationErrorBanner.classList.add('hidden');
+
+                    userLocation = {
+
+                        lat: position.coords.latitude,
+
+                        lng: position.coords.longitude
+
+                    };
+
+                    userMarker.setLatLng(userLocation);
+
+                    userMarker.setPopupContent(userName);
+
+                    rangeCircle.setLatLng(userLocation);
+
+                }, (error) => {
+
+                    console.error("Error watching position:", error.message);
+
+                    if (locationErrorBanner.classList.contains('hidden')) {
+
+                         locationErrorBanner.classList.remove('hidden');
+
+                    }
+
+                }, {
+
+                    enableHighAccuracy: true,
+
+                    timeout: 10000,
+
+                    maximumAge: 0
+
+                });
+
+
+
+            } else {
+
+                console.log("Geolocation is not supported by this browser.");
+
+                locationErrorBanner.classList.remove('hidden');
+
+                fetchAndDisplayStations(userLocation.lat, userLocation.lng);
+
+            }
+
+
+
+        });
+
+    </script>
+
+</body>
+
+</html>
