@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EV AI Analysis Dashboard</title>
+    
+    <!-- UI Framework & Mapping Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; overflow: hidden; background: #0f172a; }
+        
+        /* The Mobile Frame Container */
+        .phone-container {
+            width: 100%;
+            max-width: 375px; /* Standard mobile width */
+            height: 100vh;
+            margin: 0 auto;
+            position: relative;
+            background: #f8fafc;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        @media (min-height: 700px) {
+            .phone-container {
+                height: 85vh;
+                margin-top: 5vh;
+                border-radius: 40px;
+                border: 8px solid #1e293b;
+            }
+        }
+
+        .screen { 
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            visibility: hidden; 
+            position: absolute; 
+            inset: 0; 
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+        }
+        .screen.active { transform: translateX(0%); visibility: visible; }
+        .screen.inactive-left { transform: translateX(-100%); visibility: visible; }
+        .screen.inactive-right { transform: translateX(100%); visibility: visible; }
+
+        #map { height: 100%; width: 100%; z-index: 1; }
+
+        /* Navigation Box Adjustments */
+        .leaflet-routing-container { 
+            display: block !important; 
+            position: absolute !important; 
+            top: 80px; 
+            right: 10px; 
+            width: 240px; 
+            max-height: 120px; 
+            overflow-y: auto; 
+            background: white; 
+            padding: 8px; 
+            border-radius: 12px; 
+            font-size: 10px; 
+            z-index: 1000; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+
+        .station-icon-base { border-radius: 50% 50% 50% 0; transform: rotate(-45deg); width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .station-icon-available { background-color: #22c55e; }
+        .station-icon-smart { background-color: #f59e0b; width: 38px; height: 38px; z-index: 1000 !important; }
+
+        .loader { border: 3px solid #f1f5f9; border-top: 3px solid #4f46e5; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div class="phone-container">
+        
+        <!-- INITIALIZATION SCREEN -->
+        <div id="home-screen" class="screen active flex flex-col items-center justify-center p-8 bg-slate-900 text-white">
+            <div class="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center text-4xl mb-6 rotate-12 shadow-2xl">⚡</div>
+            <h1 class="text-3xl font-black italic tracking-tighter">SMART EV</h1>
+            <p class="text-slate-400 mt-2 text-center text-sm">Decision-Support Routing Engine</p>
+            <button id="init-btn" class="mt-12 w-full bg-white text-slate-900 py-4 rounded-2xl font-black uppercase tracking-widest active:scale-95 transition-all">Launch System</button>
+        </div>
+
+        <!-- LIVE MAP SCREEN -->
+        <div id="map-screen" class="screen inactive-right">
+            <div id="map" class="flex-grow"></div>
+            
+            <!-- Top Status Overlay -->
+            <div class="absolute top-4 left-4 right-4 bg-white/95 p-3 rounded-2xl shadow-lg z-[1000] border border-slate-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">Engine Status</p>
+                        <p class="text-xs font-bold text-slate-800">Dynamic Balancing Active</p>
+                    </div>
+                    <button id="refresh-btn" class="p-2 bg-slate-100 rounded-full">🔄</button>
+                </div>
+            </div>
+
+            <!-- Stop Navigation Button -->
+            <button id="stop-nav" class="absolute bottom-6 right-6 bg-red-600 text-white p-4 rounded-full z-[1000] hidden shadow-2xl">✕</button>
+        </div>
+
+        <!-- ANALYTICAL DOCUMENTATION SCREEN -->
+        <div id="details-screen" class="screen inactive-right bg-white">
+            <!-- Sticky Header -->
+            <div class="p-4 border-b flex items-center sticky top-0 bg-white/90 backdrop-blur-md z-10">
+                <button class="back-to-map bg-slate-100 p-2 rounded-xl text-lg">⬅</button>
+                <div class="flex-grow text-center">
+                    <p class="text-[9px] uppercase font-bold text-slate-400">Deep Analysis</p>
+                    <h1 id="det-title" class="text-xs font-bold truncate px-4">Station Name</h1>
+                </div>
+            </div>
+
+            <!-- Scrollable Content Area -->
+            <div class="flex-grow overflow-y-auto">
+                <div class="p-4">
+                    <!-- Verdict Box -->
+                    <div class="bg-indigo-900 text-white p-4 rounded-2xl mb-4 shadow-xl">
+                        <p class="text-[9px] uppercase font-bold opacity-50">AI Engine Logic Result</p>
+                        <p id="verdict-txt" class="text-sm font-bold leading-tight mt-1"></p>
+                    </div>
+
+                    <!-- Multi-Panel Graph -->
+                    <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase text-center">Component-Wise Calculation Breakdown</p>
+                    <div id="graph-container" class="border border-slate-100 rounded-3xl overflow-hidden bg-slate-50 min-h-[400px] flex flex-col items-center justify-center">
+                        <div id="graph-loader" class="loader"></div>
+                        <div id="graph-content" class="w-full"></div>
+                    </div>
+                    
+                    <!-- Space for padding at bottom of scroll -->
+                    <div class="h-4"></div>
+                </div>
+            </div>
+
+            <!-- Fixed Footer with Navigation Button -->
+            <div class="p-5 bg-white border-t border-slate-100 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
+                <button id="nav-trigger" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all">Execute Navigation</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map, userMarker, routing = null;
+        let userLoc = { lat: 28.6139, lng: 77.2090 };
+        let markers = [];
+
+        // Navigation Controller
+        function navigate(id, dir = 'forward') {
+            const active = document.querySelector('.screen.active');
+            const target = document.getElementById(id + '-screen');
+            
+            if (active) {
+                active.className = 'screen ' + (dir === 'forward' ? 'inactive-left' : 'inactive-right');
+            }
+            target.className = 'screen active';
+            
+            if (id === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 400);
+            }
+        }
+
+        // Initialize Map
+        map = L.map('map', { zoomControl: false }).setView(userLoc, 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        userMarker = L.marker(userLoc, { 
+            icon: L.icon({ iconUrl: 'https://img.icons8.com/fluency/96/car.png', iconSize: [44, 44] }) 
+        }).addTo(map);
+
+        // Core Actions
+        document.getElementById('init-btn').onclick = () => {
+            navigate('map');
+            getLocation();
+        };
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(p => {
+                    userLoc = { lat: p.coords.latitude, lng: p.coords.longitude };
+                    map.setView(userLoc, 13);
+                    userMarker.setLatLng(userLoc);
+                    syncBackend();
+                }, () => syncBackend());
+            } else { syncBackend(); }
+        }
+
+        async function syncBackend() {
+            try {
+                const res = await fetch(`http://127.0.0.1:5000/api/get_smart_stations?lat=${userLoc.lat}&lng=${userLoc.lng}`);
+                const data = await res.json();
+                markers.forEach(m => m.remove());
+                data.forEach(s => {
+                    const icon = L.divIcon({
+                        html: `<div class="station-icon-base ${s.is_smart ? 'station-icon-smart' : 'station-icon-available'}"><span style="transform:rotate(45deg); color:white; font-size:12px">${s.is_smart ? '⭐' : '⚡'}</span></div>`,
+                        className: '', iconSize: [s.is_smart ? 38:30, s.is_smart ? 38:30], iconAnchor: [15, 30]
+                    });
+                    const m = L.marker([s.lat, s.lng], { icon }).addTo(map).on('click', () => showDetails(s));
+                    markers.push(m);
+                });
+            } catch (e) { console.error("Backend Error:", e); }
+        }
+
+        async function showDetails(s) {
+            document.getElementById('det-title').textContent = s.name;
+            document.getElementById('graph-loader').style.display = 'block';
+            document.getElementById('graph-content').innerHTML = '';
+            document.getElementById('verdict-txt').textContent = s.is_smart ? 
+                "Optimal Target: Best Balance of Distance & Queue" : 
+                "Feasible Route: Backup Charging Alternative";
+            
+            navigate('details');
+
+            try {
+                const res = await fetch('http://127.0.0.1:5000/api/get_graph', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(s)
+                });
+                const g = await res.json();
+                document.getElementById('graph-loader').style.display = 'none';
+                document.getElementById('graph-content').innerHTML = `<img src="data:image/png;base64,${g.graph}" class="w-full">`;
+            } catch (e) {
+                document.getElementById('graph-loader').style.display = 'none';
+                document.getElementById('graph-content').innerHTML = '<p class="text-red-500 text-xs">Failed to load analysis.</p>';
+            }
+
+            document.getElementById('nav-trigger').onclick = () => startRouting(s.lat, s.lng);
+        }
+
+        function startRouting(lat, lng) {
+            navigate('map', 'backward');
+            if (routing) map.removeControl(routing);
+            
+            routing = L.Routing.control({
+                waypoints: [ L.latLng(userLoc.lat, userLoc.lng), L.latLng(lat, lng) ],
+                lineOptions: { styles: [{ color: '#4f46e5', weight: 8, opacity: 0.9 }] },
+                createMarker: () => null,
+                addWaypoints: false,
+                draggableWaypoints: false
+            }).addTo(map);
+
+            document.getElementById('stop-nav').classList.remove('hidden');
+        }
+
+        // Global UI listeners
+        document.querySelectorAll('.back-to-map').forEach(b => b.onclick = () => navigate('map', 'backward'));
+        document.getElementById('refresh-btn').onclick = syncBackend;
+        document.getElementById('stop-nav').onclick = () => {
+            if (routing) map.removeControl(routing);
+            document.getElementById('stop-nav').classList.add('hidden');
+        };
+    </script>
+</body>
+</html>
