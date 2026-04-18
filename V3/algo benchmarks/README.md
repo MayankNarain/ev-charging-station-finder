@@ -42,7 +42,7 @@ The X-axis in all graphs represents **Total Simulated Users** added progressivel
 
 ### 1 · 50 Concurrent Users
 
-![Algorithm Stress Test: 50 Concurrent Users]([./benchmarks/1776494821587_50.png](https://github.com/MayankNarain/ev-charging-station-finder/edit/main/V3/algo%20benchmarks/50.png))
+![Algorithm Stress Test: 50 Concurrent Users]((https://github.com/MayankNarain/ev-charging-station-finder/edit/main/V3/algo%20benchmarks/50.png))
 
 At the smallest load tested, the algorithm reveals an interesting early-sensitivity behavior. Wait time **climbs gradually and steadily** from 0 users up to approximately **39 simulated users**, at which point it abruptly **spikes to ~360 minutes** — the highest predicted wait time recorded across all tests.
 
