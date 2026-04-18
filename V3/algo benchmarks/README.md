@@ -54,7 +54,8 @@ Mitigated collisions grow linearly and top out at approximately **35** — the l
 
 ### 2 · 100 Concurrent Users
 
-![Algorithm Stress Test: 100 Concurrent Users](./benchmarks/1776494821587_100.png)
+![Algorithm Stress Test: 100 Concurrent Users](https://raw.githubusercontent.com/MayankNarain/ev-charging-station-finder/main/V3/algo%20benchmarks/100.png)
+
 
 With double the load, the saturation spike occurs at approximately the **same absolute user count (~38–40 users)**, not at a proportionally scaled point. This is a **critical finding** — the threshold appears fixed in nature, independent of total concurrent user capacity.
 
@@ -66,7 +67,8 @@ Mitigated collisions scale linearly to approximately **70** at full load — dou
 
 ### 3 · 250 Concurrent Users
 
-![Algorithm Stress Test: 250 Concurrent Users](./benchmarks/1776494821587_250.png)
+![Algorithm Stress Test: 250 Concurrent Users](https://raw.githubusercontent.com/MayankNarain/ev-charging-station-finder/main/V3/algo%20benchmarks/250.png)
+
 
 The 250-user test reinforces the established pattern. The critical spike still occurs around **~38–42 absolute users** — now appearing at roughly the **15–17% mark** of total scale. This confirms the threshold is **algorithmically fixed** and does not scale with total user count.
 
@@ -76,7 +78,8 @@ Post-spike stabilization at **50 minutes** remains consistent. The blue collisio
 
 ### 4 · 500 Concurrent Users
 
-![Algorithm Stress Test: 500 Concurrent Users](./benchmarks/1776494821586_500.png)
+![Algorithm Stress Test: 500 Concurrent Users](https://raw.githubusercontent.com/MayankNarain/ev-charging-station-finder/main/V3/algo%20benchmarks/500.png)
+
 
 At 500 users, the spike appears very early on the x-axis (around the **~30–35 user mark** visually), and the remainder of the chart is dominated by the flat, stable 50-minute wait line. This demonstrates that the algorithm spends the **vast majority of its operational time in a stable, predictable state** at scale.
 
@@ -86,7 +89,8 @@ Mitigated collisions climb to roughly **360**, maintaining the same linear growt
 
 ### 5 · 1000 Concurrent Users
 
-![Algorithm Stress Test: 1000 Concurrent Users](./benchmarks/1776494821587_1000.png)
+![Algorithm Stress Test: 1000 Concurrent Users](https://raw.githubusercontent.com/MayankNarain/ev-charging-station-finder/main/V3/algo%20benchmarks/1000.png)
+
 
 The most demanding test confirms the algorithm's scalability under extreme load. The wait time spike — still peaking at ~360 minutes — now appears at **the very beginning of the x-axis**, representing a negligible fraction of total simulation time. Beyond it, predicted wait time holds rock-solid at **50 minutes** across 950+ additional simulated users, demonstrating strong and consistent stability.
 
