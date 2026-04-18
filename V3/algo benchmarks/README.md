@@ -42,7 +42,7 @@ The X-axis in all graphs represents **Total Simulated Users** added progressivel
 
 ### 1 · 50 Concurrent Users
 
-![Algorithm Stress Test: 50 Concurrent Users](./algo_benchmarks/50.png)
+![Algorithm Stress Test: 50 Concurrent Users](V3/algo_benchmarks/50.png)
 
 At the smallest load tested, the algorithm reveals an interesting early-sensitivity behavior. Wait time **climbs gradually and steadily** from 0 users up to approximately **39 simulated users**, at which point it abruptly **spikes to ~360 minutes** — the highest predicted wait time recorded across all tests.
 
