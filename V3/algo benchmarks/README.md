@@ -119,5 +119,5 @@ The primary area warranting further investigation is the **fixed saturation thre
 
 ---
 
-> 📁 Benchmark graphs are located in the `/benchmarks` directory of this repository.  
+> 📁 Benchmark graphs are located in the `/algo benchmarks` directory of this repository.  
 > 🛠️ Tests were conducted using the internal simulation engine of the EV Charger Finder application.
